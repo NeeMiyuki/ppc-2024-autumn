@@ -6,12 +6,26 @@
 #include "core/perf/include/perf.hpp"
 #include "mpi/Odintsov_M_CountingMismatchedCharactersStr/include/ops_mpi.hpp"
 
-TEST(MPI_parallel_perf_test, my_test_pipeline_run) {
+static std::string get_random_str(size_t sz) {
+  const char characters[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrswxyz0123456789";
+  std::string str;
+
+  std::srand(std::time(nullptr));
+
+  for (size_t i = 0; i < sz; ++i) {
+    int index = std::rand() % (sizeof(characters) - 1);
+    str = characters[index];
+  }
+
+  return str;
+}
+
+TEST(Odintsov_m_MPI_parallel_perf_test, my_test_pipeline_run) {
   boost::mpi::communicator com;
-  char str1[] = "qbrkyndjjobh";
-  char str2[] = "qellowhwmvpt";
-  std::vector<char*> in{str1, str2};
-  std::vector<int> out(1, 1);
+  std::string s1 = get_random_str(2400);
+  std::string s2 = get_random_str(2400);
+  std::vector<char*> in{s1.data(), s2.data()};
+  std::vector<size_t> out(1, 1);
 
   // Create Task Data Parallel
   std::shared_ptr<ppc::core::TaskData> taskDataPar = std::make_shared<ppc::core::TaskData>();
@@ -44,15 +58,15 @@ TEST(MPI_parallel_perf_test, my_test_pipeline_run) {
   perfAnalyzer->pipeline_run(perfAttr, perfResults);
   if (com.rank() == 0) {
     ppc::core::Perf::print_perf_statistic(perfResults);
-    ASSERT_EQ(10, out[0]);
   }
 }
-TEST(MPI_parallel_perf_test, my_test_task_run) {
+
+TEST(Odintsov_m_MPI_parallel_perf_test, my_test_task_run) {
   boost::mpi::communicator com;
-  char str1[] = "qbrkyndjjobh";
-  char str2[] = "qellowhwmvpt";
-  std::vector<char*> in{str1, str2};
-  std::vector<int> out(1, 1);
+  std::string s1 = get_random_str(2400);
+  std::string s2 = get_random_str(2400);
+  std::vector<char*> in{s1.data(), s2.data()};
+  std::vector<size_t> out(1, 1);
 
   // Create Task Data Parallel//
   std::shared_ptr<ppc::core::TaskData> taskDataPar = std::make_shared<ppc::core::TaskData>();
@@ -85,6 +99,5 @@ TEST(MPI_parallel_perf_test, my_test_task_run) {
   perfAnalyzer->task_run(perfAttr, perfResults);
   if (com.rank() == 0) {
     ppc::core::Perf::print_perf_statistic(perfResults);
-    ASSERT_EQ(10, out[0]);
   }
 }

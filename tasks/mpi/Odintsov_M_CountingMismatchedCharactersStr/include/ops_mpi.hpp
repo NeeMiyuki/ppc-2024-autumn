@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <boost/mpi/collectives.hpp>
@@ -35,6 +34,7 @@ class CountingCharacterMPIParallel : public ppc::core::Task {
   std::vector<std::string> local_input;
   std::vector<char*> input;
   int ans{};
+  int flag;
   boost::mpi::communicator com;
 };
 }  // namespace Odintsov_M_CountingMismatchedCharactersStr_mpi

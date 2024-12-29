@@ -66,21 +66,14 @@ bool CountingCharacterMPIParallel::pre_processing() {
   internal_order_test();
   if (com.rank() == 0) {
     // инициализация инпута
-    if (strlen(reinterpret_cast<char *>(taskData->inputs[0])) >=
-        strlen(reinterpret_cast<char *>(taskData->inputs[1]))) {
-      input.push_back(reinterpret_cast<char *>(taskData->inputs[0]));
-      input.push_back(reinterpret_cast<char *>(taskData->inputs[1]));
-    } else {
-      input.push_back(reinterpret_cast<char *>(taskData->inputs[1]));
-      input.push_back(reinterpret_cast<char *>(taskData->inputs[0]));
-    }
+    input.push_back(reinterpret_cast<char *>(taskData->inputs[0]));
+    input.push_back(reinterpret_cast<char *>(taskData->inputs[1]));
     // Слчай если строки разной длины
-    if (strlen(input[0]) != (strlen(input[1]))) {
+    if (strlen(input[1]) < strlen(input[0])) {
       ans = strlen(input[0]) - strlen(input[1]);
       input[0][strlen(input[1])] = '\0';
-    } else {
-      ans = 0;
     }
+    ans = 0;
   }
   return true;
 }
@@ -88,43 +81,65 @@ bool CountingCharacterMPIParallel::run() {
   internal_order_test();
   // Пересылка
   size_t loc_size = 0;
+
   // Инициализация в 0 поток
   if (com.rank() == 0) {
+    flag = 1;
     // Инициализация loc_size;
-    loc_size = (strlen(input[0]) + com.size() - 1) /
-               com.size();  // Округляем вверх, чтобы при большем количестве потоков loc_size = 1
+    if (strlen(input[0]) == 0) {
+      flag = 0;
+    } else if (strlen(input[0]) == 1) {
+      flag = 0;
+      if (input[0][0] != input[1][0]) ans += 2;
+    } else {
+      loc_size = (strlen(input[0]) + com.size() - 1) / com.size();
+    }
   }
+  broadcast(com, flag, 0);
   broadcast(com, loc_size, 0);
   if (com.rank() == 0) {
     for (int pr = 1; pr < com.size(); pr++) {
-      size_t send_size =
-          std::min(loc_size, strlen(input[0] - pr * loc_size));  // Ограничиваем размар отправляемых данных
-      com.send(pr, 0, input[0] + pr * loc_size, send_size);
-      com.send(pr, 0, input[1] + pr * loc_size, send_size);
+      if (loc_size != 0) {
+        size_t send_size = std::min(loc_size, strlen(input[0]) - pr * loc_size);
+        com.send(pr, 0, input[0] + pr * loc_size, send_size);
+        com.send(pr, 0, input[1] + pr * loc_size, send_size);
+      }
     }
   }
   if (com.rank() == 0) {
-    std::string str1(input[0], loc_size);
-    std::string str2(input[1], loc_size);
-    local_input.push_back(str1);
-    local_input.push_back(str2);
+    if (loc_size != 0) {
+      std::string str1(input[0], loc_size);
+      std::string str2(input[1], loc_size);
+      local_input.emplace_back(str1);
+      local_input.emplace_back(str2);
+    } else {
+      local_input.emplace_back("");
+      local_input.emplace_back("");
+    }
   } else {
-    std::string str1('0', loc_size);
-    std::string str2('0', loc_size);
-    com.recv(0, 0, str1.data(), loc_size);
-    com.recv(0, 0, str2.data(), loc_size);
-    local_input.push_back(str1);
-    local_input.push_back(str2);
-  }
-  size_t size_1 = local_input[0].size();
-  //  Реализация
-  int loc_res = 0;
-  for (size_t i = 0; i < size_1; i++) {
-    if (local_input[0][i] != local_input[1][i]) {
-      loc_res += 2;
+    if (loc_size != 0) {
+      std::string str1(loc_size, '\0');
+      std::string str2(loc_size, '\0');
+      com.recv(0, 0, str1.data(), loc_size);
+      com.recv(0, 0, str2.data(), loc_size);
+      local_input.emplace_back(str1);
+      local_input.emplace_back(str2);
+    } else {
+      local_input.emplace_back("");
+      local_input.emplace_back("");
     }
   }
-  reduce(com, loc_res, ans, std::plus(), 0);
+  if (flag != 0) {
+    size_t size_1 = local_input[0].size();
+    int loc_res = 0;
+    for (size_t i = 0; i < size_1; i++) {
+      if (local_input[0][i] != local_input[1][i]) {
+        loc_res += 2;
+      }
+    }
+    reduce(com, loc_res, ans, std::plus(), 0);
+  }
+
   return true;
 }
 
